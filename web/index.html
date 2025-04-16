@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+
+    <title>WebSocket 聊天室</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        #status {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .connected { background: #dff0d8; color: #3c763d; }
+        .disconnected { background: #f2dede; color: #a94442; }
+        .chat-box {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        #messageLog {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        .message { margin: 8px 0; padding: 8px; border-radius: 4px; }
+        .system { background: #f8f9fa; color: #6c757d; }
+        .private { background: #e3f2fd; border-left: 4px solid #2196F3; }
+        .public { background: #e8f5e9; border-left: 4px solid #4CAF50; }
+        .input-group { margin-bottom: 10px; }
+        input[type="text"], select {
+            padding: 8px;
+            width: 200px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 8px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+    </style>
+
+    <style>
+        /* 基础样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(3px);
+        }
+
+        .modal-content {
+            background: #fff;
+            margin: 10vh auto;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            animation: modalOpen 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes modalOpen {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* 头部样式 */
+        .modal-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #d32f2f;
+            font-size: 18px;
+        }
+
+        .close {
+            cursor: pointer;
+            font-size: 24px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .close:hover {
+            opacity: 1;
+        }
+
+        /* 内容区域 */
+        .modal-body {
+            padding: 20px 24px;
+        }
+
+        #errorMessage {
+            color: #333;
+            font-size: 16px;
+            line-height: 1.5;
+            margin: 0 0 15px;
+        }
+
+        .error-detail {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .error-detail span {
+            display: block;
+            margin: 4px 0;
+        }
+
+        /* 底部按钮 */
+        .modal-footer {
+            padding: 16px 24px;
+            text-align: right;
+        }
+
+        .btn-primary, .btn-secondary {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            margin-left: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #d32f2f;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #b71c1c;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #bdbdbd;
+        }
+    </style>
+
+</head>
+<body>
+<h1>WebSocket 聊天室</h1>
+
+<!-- 连接控制 -->
+<div class="input-group">
+    <input type="text" id="userId" placeholder="用户ID" required>
+    <input type="text" id="roomId" placeholder="房间ID" required>
+    <button id="connectBtn" onclick="toggleConnection()">连接</button>
+    <span id="status" class="disconnected">未连接</span>
+</div>
+
+<!-- 消息发送区域 -->
+<div class="chat-box">
+    <div class="input-group">
+        <select id="msgType">
+            <option value="0">群聊消息</option>
+            <option value="1">私聊消息</option>
+        </select>
+        <input type="text" id="targetId" placeholder="接收者ID（私聊时填写）">
+    </div>
+    <div class="input-group">
+        <input type="text" id="messageInput" placeholder="输入消息" style="width: 400px;">
+        <button onclick="sendMessage()">发送</button>
+    </div>
+    <div id="messageLog"></div>
+</div>
+
+<!-- 错误模态框结构 -->
+<div id="errorModal" class="modal" role="dialog" aria-labelledby="errorTitle" aria-modal="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="errorTitle">⚠️ 操作异常</h3>
+            <button class="close" aria-label="关闭">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="errorMessage"></p>
+            <div class="error-detail">
+                <span class="time" id="errorTime"></span>
+                <span class="code" id="errorCode"></span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="confirmBtn" class="btn-primary">确定</button>
+            <button id="detailBtn" class="btn-secondary">查看详情</button>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    let ws = null;
+    let currentUserId = null;
+    let currentRoomId = null;
+    const wsUrl = "ws://localhost:7000/ws"; // 修改为您的WebSocket地址
+
+    // 连接状态管理
+    function updateStatus(connected) {
+        const statusElem = document.getElementById('status');
+        const btn = document.getElementById('connectBtn');
+
+        if (connected) {
+            statusElem.className = 'connected';
+            statusElem.textContent = `已连接 | 用户: ${currentUserId} | 房间: ${currentRoomId}`;
+            btn.textContent = '断开连接';
+        } else {
+            statusElem.className = 'disconnected';
+            statusMsg = '未连接';
+            if (currentUserId) statusMsg += ` | 上次用户: ${currentUserId}`;
+            if (currentRoomId) statusMsg += ` | 房间: ${currentRoomId}`;
+            statusElem.textContent = statusMsg;
+            btn.textContent = '连接';
+        }
+    }
+
+    // 连接/断开连接
+    function toggleConnection() {
+        const statusElem = document.getElementById('status');
+        const userIdInput = document.getElementById('userId');
+        const roomIdInput = document.getElementById('roomId');
+
+        if (ws) {
+            // 发送断开通知消息
+            const disconnectMsg = {
+                msg_id: Date.now(),
+                type: 2, // 断开连接类型
+                sender_id: currentUserId,
+                room_id: currentRoomId,
+                buffer: "user_disconnect",
+                send_time_stamp: new Date().toISOString()
+            };
+
+            // 尝试发送断开通知
+            try {
+                ws.send(JSON.stringify(disconnectMsg));
+            } catch (e) {
+                console.warn("断开通知发送失败:", e);
+            }
+
+            // 立即更新界面状态
+            statusElem.classList.add('disconnecting');
+            statusElem.textContent = '断开中...';
+
+            // 强制关闭连接（添加超时保护）
+            ws.onclose = null; // 禁用自动状态更新
+            setTimeout(() => {
+                if (ws) {
+                    ws.close(1000, "用户主动断开"); // 使用正常关闭代码
+                    ws = null;
+                    handleDisconnect();
+                }
+            }, 1000);
+        } else {
+            // 连接前验证
+            if (!userIdInput.value || !roomIdInput.value) {
+                alert('请填写用户ID和房间ID');
+                return;
+            }
+
+            // 禁用输入框防止修改
+            userIdInput.readOnly = true;
+            roomIdInput.readOnly = true;
+
+            currentUserId = parseInt(userIdInput.value);
+            currentRoomId = parseInt(roomIdInput.value);
+            connect();
+        }
+    }
+
+    // 统一处理断开逻辑
+    function handleDisconnect() {
+        const userIdInput = document.getElementById('userId');
+        const roomIdInput = document.getElementById('roomId');
+
+        // 重置输入框状态
+        userIdInput.readOnly = false;
+        roomIdInput.readOnly = false;
+
+        // 清空敏感信息
+        userIdInput.value = '';
+        roomIdInput.value = '';
+        currentUserId = null;
+        currentRoomId = null;
+
+        // 更新界面状态
+        updateStatus(false);
+        addSystemMessage('已成功断开连接');
+    }
+
+    // WebSocket关闭回调处理
+    ws.onclose = (event) => {
+        if (event.code !== 1000) { // 非正常关闭
+            addSystemMessage(`连接异常断开: ${event.reason || '未知原因'}`);
+        }
+        handleDisconnect();
+    };
+
+    // 建立WebSocket连接
+    function connect() {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            // 发送认证信息（使用数字类型消息类型）
+            const authMsg = {
+                msg_id: Date.now(),         // 新增消息ID（使用时间戳模拟雪花ID）
+                type: 99,                   // 认证类型用特殊数字标识
+                sender_id: currentUserId,   // 必须字段
+                room_id: currentRoomId,     // 对应结构体的room_id
+                buffer: "auth_request",      // 认证标识
+                send_time_stamp: new Date().toISOString()
+            };
+            ws.send(JSON.stringify(authMsg));
+            updateStatus(true);
+            addSystemMessage('连接已建立');
+        };
+
+        // ...其他回调函数保持不变...
+    }
+
+    // 消息处理（调整为数字类型判断）
+    function handleServerMessage(msg) {
+        switch(msg.type) {  // 注意字段名改为小写
+            case 0: // 私聊
+                addMessage(msg, 'private');
+                break;
+            case 1: // 群聊
+                addMessage(msg, 'public');
+                break;
+            case 2: // 系统消息（使用数字类型）
+                addSystemMessage(msg.buffer);
+                break;
+            default:
+                addSystemMessage(`未知消息类型: ${JSON.stringify(msg)}`);
+        }
+    }
+
+    // 消息发送功能完整实现
+    function sendMessage() {
+        // 1. 状态检查
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            showErrorModal('连接未就绪，请检查网络后重试');
+            return;
+        }
+
+        // 2. 输入校验
+        const msgInput = document.getElementById('messageInput');
+        const message = msgInput.value.trim();
+        if (!message) {
+            showErrorModal('消息内容不能为空');
+            return;
+        }
+
+        // 3. 构造基础消息
+        const baseMessage = {
+            type: parseInt(document.getElementById('msgType').value),
+            sender_id: currentUserId,
+            room_id: currentRoomId,
+            buffer: message,
+            send_time_stamp: new Date().toISOString(),
+            msg_status: 1 // 1=已发送，2=已送达，3=已读
+        };
+
+        // 4. 类型相关处理
+        const msgType = baseMessage.type;
+        if (msgType === 1) { // 私聊
+            const targetId = parseInt(document.getElementById('targetId').value);
+            if (!targetId || targetId === currentUserId) {
+                showErrorModal('私聊必须指定有效接收者');
+                return;
+            }
+            baseMessage.target_id = targetId;
+        } else if (msgType === 0) { // 群聊
+            if (!currentRoomId) {
+                showErrorModal('请先加入群组');
+                return;
+            }
+            // 显式设置为0表示群组消息
+            baseMessage.target_id = 0;
+        }
+
+
+        // 6. 发送处理
+        let retryCount = 0;
+        const sendWithRetry = () => {
+            try {
+                ws.send(JSON.stringify(baseMessage));
+
+                // 添加到发送队列等待ACK
+                pendingMessages.set(baseMessage.msg_id, {
+                    ...baseMessage,
+                    retries: 0,
+                    timestamp: Date.now()
+                });
+
+                msgInput.value = '';
+            } catch (e) {
+                console.log(e)
+                // if (retryCount++ < 3) {
+                //     setTimeout(sendWithRetry, 1000 * retryCount);
+                // } else {
+                //     handleSendFailure(baseMessage.msg_id);
+                // }
+            }
+        };
+
+        sendWithRetry();
+    }
+
+
+
+    // 辅助函数：处理发送失败
+    function handleSendFailure(msgId) {
+        const msg = pendingMessages.get(msgId);
+        if (msg) {
+            addSystemMessage(`消息发送失败: ${msg.buffer}`, 'error');
+            pendingMessages.delete(msgId);
+
+            // 更新UI显示失败状态
+            const elements = document.querySelectorAll(`[data-msgid="${msgId}"]`);
+            elements.forEach(el => {
+                el.classList.add('message-failed');
+                el.innerHTML += '<span class="retry-btn" onclick="retrySend(\''+msgId+'\')">[重试]</span>';
+            });
+        }
+    }
+
+    // // 消息状态追踪表
+    // const pendingMessages = new Map();
+    //
+    // // 定时检查未确认消息（每5秒）
+    // setInterval(() => {
+    //     const now = Date.now();
+    //     pendingMessages.forEach((msg, id) => {
+    //         if (now - msg.timestamp > 15000) { // 15秒未确认
+    //             handleSendFailure(id);
+    //         }
+    //     });
+    // }, 5000);
+
+    // 重试发送
+    function retrySend(msgId) {
+        const msg = pendingMessages.get(msgId);
+        if (msg) {
+            msg.retries++;
+            sendMessage(msg);
+        }
+    }
+
+    // 显示消息（调整字段引用）
+    function addMessage(msg, type) {
+        const time = new Date(msg.send_time_stamp).toLocaleTimeString();
+        let content = `[${time}] `;
+        if (type === 'private') {
+            content += `来自 ${msg.sender_id} 的私信: ${msg.buffer}`; // 小写字段名
+        } else {
+            content += `[群聊] ${msg.sender_id}: ${msg.buffer}`;
+        }
+        const log = document.getElementById('messageLog');
+        const elem = document.createElement('div');
+        elem.className = 'message system';
+        elem.textContent = content;
+        log.appendChild(elem);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function addSystemMessage(text) {
+        const log = document.getElementById('messageLog');
+        const elem = document.createElement('div');
+        elem.className = 'message system';
+        elem.textContent = `[系统] ${text}`;
+        log.appendChild(elem);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    // 初始化
+    window.onload = () => {
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    };
+</script>
+
+<script>
+    // 错误记录队列
+    const errorQueue = [];
+    let isModalOpen = false;
+
+    function showErrorModal(message, options = {}) {
+        // 1. 构造错误对象
+        const error = {
+            id: Date.now(),
+            message: message,
+            code: options.code || 'GENERIC_ERROR',
+            timestamp: new Date().toISOString(),
+            stack: options.stack || (new Error()).stack,
+        };
+
+        // 2. 将错误加入队列
+        errorQueue.push(error);
+
+        // 3. 如果已有弹窗显示则存入队列，否则立即显示
+        if (isModalOpen) return;
+        renderModal(error);
+    }
+
+    function renderModal(error) {
+        isModalOpen = true;
+        const modal = document.getElementById('errorModal');
+
+        // 更新DOM内容
+        document.getElementById('errorMessage').textContent = error.message;
+        document.getElementById('errorTime').textContent = `时间: ${new Date(error.timestamp).toLocaleString()}`;
+        document.getElementById('errorCode').textContent = `错误码: ${error.code}`;
+
+        // 显示模态框
+        modal.style.display = 'block';
+
+        // 处理交互
+        const hideModal = () => {
+            modal.style.display = 'none';
+            isModalOpen = false;
+
+            // 检查队列中是否有后续错误
+            if (errorQueue.length > 0) {
+                const nextError = errorQueue.shift();
+                renderModal(nextError);
+            }
+        };
+
+        // 绑定关闭事件
+        document.querySelectorAll('.close, #confirmBtn').forEach(el => {
+            el.onclick = hideModal;
+        });
+
+        document.getElementById('detailBtn').onclick = () => {
+            console.error(`错误详情:
+      消息: ${error.message}
+      代码: ${error.code}
+      时间: ${error.timestamp}
+      调用栈: ${error.stack}`);
+            hideModal();
+        };
+
+        // 支持ESC键关闭
+        document.addEventListener('keydown', function handleESC(e) {
+            if (e.key === 'Escape') {
+                hideModal();
+                document.removeEventListener('keydown', handleESC);
+            }
+        });
+    }
+</script>
+</body>
+</html>
+
+
+
+
+
+<!--<!DOCTYPE html>-->
+<!--<html>-->
+<!--<head>-->
+<!--    <meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>-->
+
+<!--    <title>GoChat WebSocket 测试</title>-->
+<!--    <style>-->
+<!--        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }-->
+<!--        #status { padding: 10px; margin: 10px 0; border-radius: 5px; }-->
+<!--        .connected { background: #dff0d8; color: #3c763d; }-->
+<!--        .disconnected { background: #f2dede; color: #a94442; }-->
+<!--        #messageLog { height: 300px; border: 1px solid #ddd; padding: 10px; overflow-y: auto; }-->
+<!--        .message { margin: 5px 0; padding: 5px; background: #f8f9fa; }-->
+<!--    </style>-->
+<!--</head>-->
+<!--<body>-->
+<!--<h1>WebSocket 测试客户端</h1>-->
+
+<!--&lt;!&ndash; 连接控制 &ndash;&gt;-->
+<!--<div>-->
+<!--    <button id="connectBtn" onclick="toggleConnection()">连接</button>-->
+<!--    <span id="status" class="disconnected">未连接</span>-->
+<!--</div>-->
+
+<!--&lt;!&ndash; 消息发送 &ndash;&gt;-->
+<!--<div style="margin: 20px 0;">-->
+<!--    <input type="text" id="messageInput" placeholder="输入消息" style="width: 300px; padding: 5px;">-->
+<!--    <button onclick="sendMessage()">发送</button>-->
+<!--</div>-->
+
+<!--&lt;!&ndash; 消息历史 &ndash;&gt;-->
+<!--<div id="messageLog"></div>-->
+
+<!--<script>-->
+<!--    let ws = null;-->
+<!--    const wsUrl = "ws://localhost:7000/ws"; // 根据实际配置修改端口-->
+
+<!--    // 连接状态管理-->
+<!--    function updateStatus(connected) {-->
+<!--        const statusElem = document.getElementById('status');-->
+<!--        const btn = document.getElementById('connectBtn');-->
+
+<!--        if (connected) {-->
+<!--            statusElem.className = 'connected';-->
+<!--            statusElem.textContent = '已连接';-->
+<!--            btn.textContent = '断开连接';-->
+<!--        } else {-->
+<!--            statusElem.className = 'disconnected';-->
+<!--            statusElem.textContent = '未连接';-->
+<!--            btn.textContent = '连接';-->
+<!--        }-->
+<!--    }-->
+
+<!--    // 连接/断开连接-->
+<!--    function toggleConnection() {-->
+<!--        if (ws) {-->
+<!--            ws.close();-->
+<!--            ws = null;-->
+<!--        } else {-->
+<!--            connect();-->
+<!--        }-->
+<!--    }-->
+
+<!--    // 建立 WebSocket 连接-->
+<!--    function connect() {-->
+<!--        ws = new WebSocket(wsUrl);-->
+
+<!--        ws.onopen = () => {-->
+<!--            updateStatus(true);-->
+<!--            addLogMessage('系统', '连接已建立');-->
+<!--        };-->
+
+<!--        ws.onmessage = (event) => {-->
+<!--            addLogMessage('服务器', event.data);-->
+<!--        };-->
+
+<!--        ws.onerror = (error) => {-->
+<!--            addLogMessage('系统', `错误: ${error.message}`);-->
+<!--            updateStatus(false);-->
+<!--        };-->
+
+<!--        ws.onclose = () => {-->
+<!--            addLogMessage('系统', '连接已关闭');-->
+<!--            updateStatus(false);-->
+<!--        };-->
+<!--    }-->
+
+<!--    // 发送消息-->
+<!--    function sendMessage() {-->
+<!--        if (!ws || ws.readyState !== WebSocket.OPEN) {-->
+<!--            alert('请先建立连接');-->
+<!--            return;-->
+<!--        }-->
+
+<!--        const input = document.getElementById('messageInput');-->
+<!--        const message = input.value.trim();-->
+
+<!--        if (message) {-->
+<!--            ws.send(message);-->
+<!--            addLogMessage('我', message);-->
+<!--            input.value = '';-->
+<!--        }-->
+<!--    }-->
+
+<!--    // 显示消息-->
+<!--    function addLogMessage(sender, message) {-->
+<!--        const log = document.getElementById('messageLog');-->
+<!--        const elem = document.createElement('div');-->
+<!--        elem.className = 'message';-->
+<!--        elem.innerHTML = `<strong>${sender}:</strong> ${message}`;-->
+<!--        log.appendChild(elem);-->
+<!--        log.scrollTop = log.scrollHeight; // 自动滚动到底部-->
+<!--    }-->
+
+<!--    // 初始化-->
+<!--    window.onload = () => {-->
+<!--        document.getElementById('messageInput').addEventListener('keypress', (e) => {-->
+<!--            if (e.key === 'Enter') sendMessage();-->
+<!--        });-->
+<!--    };-->
+<!--</script>-->
+<!--</body>-->
+<!--</html>-->
