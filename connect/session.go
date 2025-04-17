@@ -26,8 +26,7 @@ type Session struct {
 func NewSession(size int) *Session {
 	s := new(Session)
 	s.cache = make(chan *proto.Message, size) // 最多可以保留size条记录
-	// todo : 加入拉去历史信息
-	// todo : mongo 存储信息
+	// todo : Redis拉取历史信息
 	return s
 }
 

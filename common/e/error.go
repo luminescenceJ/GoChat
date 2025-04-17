@@ -3,8 +3,11 @@ package e
 import "errors"
 
 var (
-	Error_ROOM_DROP  = errors.New("room is dropped")
-	Error_RPC_CREATE = errors.New("init connect rpc etcd discovery client fail")
+	Error_ROOM_DROP          = errors.New("room is dropped")
+	Error_RPC_CREATE         = errors.New("init connect rpc etcd discovery client fail")
+	GormToManyRequestError   = errors.New("gorm: to many request")
+	Error_Register_NAMEORPWD = errors.New("user_name or password empty")
+	Error_JWT_Parse          = errors.New("invalid token")
 
 	Error_ACCOUNT_NOT_FOUND              = errors.New("账号不存在")
 	Error_ACCOUNT_LOCKED                 = errors.New("账号被锁定")

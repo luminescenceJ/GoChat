@@ -32,6 +32,11 @@ func (c *Connect) Run() {
 		logrus.Panicf("InitLogicRpcClient err:%s", err.Error())
 	}
 
+	//// init mongoDb for lasting
+	//if err := db.InitMongoDB(); err != nil {
+	//	logrus.Panicf("InitMongoDB err:%s", err.Error())
+	//}
+
 	//init Connect layer rpc server, logic client will call this
 	Buckets := make([]*Bucket, connectConfig.ConnectBucket.CpuNum)
 	for i := 0; i < connectConfig.ConnectBucket.CpuNum; i++ {
@@ -56,10 +61,10 @@ func (c *Connect) Run() {
 
 	c.ServerId = fmt.Sprintf("%s-%s", "ws", uuid.New().String())
 
-	//// init Redis Client for store message
-	//if err := c.InitRedisClient(); err != nil {
-	//	logrus.Panicf("InitRedisClient err:%s", err.Error())
-	//}
+	// init Redis Client for store message
+	if err := c.InitRedisClient(); err != nil {
+		logrus.Panicf("InitRedisClient err:%s", err.Error())
+	}
 
 	// init kafka
 	if err := c.InitKafkaClient(); err != nil {

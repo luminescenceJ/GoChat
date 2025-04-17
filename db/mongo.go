@@ -1,18 +1,18 @@
-package main
+package db
 
 import (
+	"Go-Chat/config"
 	"context"
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
-	"log"
-	"time"
-
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"log"
+	"time"
 )
 
 // Mongo全局客户端
-var mongoClient *mongo.Client
+var MongoClient *mongo.Client
 
 type User struct {
 	ID    string `bson:"_id,omitempty"`
@@ -21,28 +21,33 @@ type User struct {
 	Age   int    `bson:"age"`
 }
 
-func InitMongoDB() {
-	uri := "mongodb://localhost:27017" // 替换为你的 Mongo 地址
+func InitMongoDB() error {
+	conf := config.Conf.Mongo // 假设你配置好了 config.Conf.Mongo
+
+	uri := fmt.Sprintf("mongodb://%s:%s@%s:%s", conf.Username, conf.Password, conf.Host, conf.Port)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	clientOptions := options.Client().ApplyURI(uri)
+	clientOptions := options.Client().ApplyURI(uri).SetMaxPoolSize(100).SetMinPoolSize(20)
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.Fatal("连接失败:", err)
+		return err
 	}
 
 	err = client.Ping(ctx, nil)
 	if err != nil {
 		log.Fatal("Ping失败:", err)
+		return err
 	}
 
 	fmt.Println("✅ MongoDB 连接成功！")
-	mongoClient = client
+	MongoClient = client
+	return nil
 }
 
 func InsertUser(user User) {
-	collection := mongoClient.Database("testdb").Collection("users")
+	collection := MongoClient.Database("gochat").Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -54,7 +59,7 @@ func InsertUser(user User) {
 }
 
 func FindUsers() {
-	collection := mongoClient.Database("testdb").Collection("users")
+	collection := MongoClient.Database("gochat").Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -74,7 +79,7 @@ func FindUsers() {
 }
 
 func UpdateUser(name string, newAge int) {
-	collection := mongoClient.Database("testdb").Collection("users")
+	collection := MongoClient.Database("gochat").Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -89,7 +94,7 @@ func UpdateUser(name string, newAge int) {
 }
 
 func DeleteUser(name string) {
-	collection := mongoClient.Database("testdb").Collection("users")
+	collection := MongoClient.Database("gochat").Collection("users")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -100,19 +105,19 @@ func DeleteUser(name string) {
 	fmt.Printf("删除 %d 个文档\n", res.DeletedCount)
 }
 
-func main() {
-	InitMongoDB()
-
-	// 插入
-	user := User{Name: "Alice", Email: "alice@example.com", Age: 25}
-	InsertUser(user)
-
-	// 查询
-	FindUsers()
-
-	// 更新
-	UpdateUser("Alice", 30)
-
-	// 删除
-	DeleteUser("Alice")
-}
+//func main() {
+//	InitMongoDB()
+//
+//	// 插入
+//	user := User{Name: "Alice", Email: "alice@example.com", Age: 25}
+//	InsertUser(user)
+//
+//	// 查询
+//	FindUsers()
+//
+//	// 更新
+//	UpdateUser("Alice", 30)
+//
+//	// 删除
+//	DeleteUser("Alice")
+//}

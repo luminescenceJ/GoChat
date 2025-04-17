@@ -3,6 +3,7 @@ package connect
 import (
 	"Go-Chat/common/e"
 	"Go-Chat/config"
+	"Go-Chat/db"
 	"Go-Chat/proto"
 	"Go-Chat/tools"
 	"context"
@@ -90,7 +91,7 @@ func (c *Connect) InitRedisClient() (err error) {
 	}
 	RedisClient = tools.GetRedisInstance(redisOpt)
 	if pong, err := RedisClient.Ping().Result(); err != nil {
-		logrus.Infof("RedisCli Ping Result pong: %s,  err: %s", pong, err)
+		logrus.Infof("RedisCli Ping Result pong: %s,  err: %s\n", pong, err)
 	}
 	return err
 }
@@ -104,6 +105,14 @@ func (c *Connect) InitConnectWebsocketRpcServer() (err error) {
 		}
 		logrus.Infof("Connect start run at-->%s:%s", network, addr)
 		go c.createConnectWebsocktsRpcServer(network, addr)
+	}
+	return err
+}
+
+func (c *Connect) InitMongoDbClient() (err error) {
+	err = db.InitMongoDB()
+	if err != nil {
+		logrus.Fatalf("InitMongoDbClient InitMongoDB fail:%s", err.Error())
 	}
 	return err
 }

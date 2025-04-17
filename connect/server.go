@@ -49,6 +49,8 @@ func (s *Server) Bucket(userId int) *Bucket {
 	return s.Buckets[idx]
 }
 
+//todo : http接收到之后再携带token访问websocket
+
 // 向客户端发送，消费消息和心跳监听
 func (s *Server) writePump(ch *Session, c *Connect) {
 	// 定时发送心跳
@@ -104,6 +106,10 @@ func (s *Server) writePump(ch *Session, c *Connect) {
 
 // 从客户端接收，生产消息并持久化
 func (s *Server) readPump(ch *Session, c *Connect) {
+	// 流程实现：
+	// websocket读取前端发送消息类（私聊，群聊，应答，断开连接）
+	// 私聊群聊持久化到redis后加入消息队列
+	// 消息队列持续消费消息发送到对应的session，再由session进行消费到目标客户端
 	defer func() {
 		logrus.Infof("start exec disConnect ...")
 		//if ch.Room == nil || ch.userId == 0 {
@@ -154,17 +160,17 @@ func (s *Server) readPump(ch *Session, c *Connect) {
 
 		switch transMsg.Type {
 		case proto.MsgTypePrivate:
-			// 私聊，直接发送到对应用户id的websocket通道
+
 			if transMsg.TargetId == 0 {
 				logrus.Warn("Private message missing target ID!")
 				continue
 			}
-			// todo : redis Session在线查询 ,加入目标对象的数据库 redis/mongo
 
 			parsedTime, err := time.Parse(time.RFC3339, transMsg.SendTimeStamp)
 			if err != nil {
 				logrus.Warn("ParseTime err :%s  ", err.Error())
 			}
+
 			// 用户在线
 			msg := &proto.Message{
 				MsgId:         tools.GetSnowflakeId(),
@@ -176,6 +182,13 @@ func (s *Server) readPump(ch *Session, c *Connect) {
 				TargetId:      transMsg.TargetId,
 				SendTimeStamp: parsedTime,
 				//ReceiveTimeStamp: time.Time{},
+			}
+
+			// redis持久化
+			err = c.SaveMsg(msg)
+			if err != nil {
+				logrus.Warn("SaveMsg err :%s  ", err.Error())
+				return
 			}
 
 			jsonBytes, err2 := json.Marshal(msg)
@@ -217,6 +230,13 @@ func (s *Server) readPump(ch *Session, c *Connect) {
 				//TargetId:      targetSession.userId,
 				SendTimeStamp: parsedTime,
 				//ReceiveTimeStamp: time.Time{},
+			}
+
+			// redis持久化
+			err = c.SaveMsg(msg)
+			if err != nil {
+				logrus.Warn("SaveMsg err :%s  ", err.Error())
+				return
 			}
 
 			jsonBytes, err := json.Marshal(msg)

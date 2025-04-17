@@ -1,7 +1,7 @@
 package main
 
 import (
-	"Go-Chat/connect"
+	"Go-Chat/api"
 	"fmt"
 	"os"
 	"os/signal"
@@ -37,7 +37,8 @@ func main() {
 	//	fmt.Println("exiting,module param error!")
 	//}
 
-	connect.New().Run()
+	api.New().Run()
+	//connect.New().Run()
 	//fmt.Println(fmt.Sprintf("run %s module done!", module))
 	quit := make(chan os.Signal)
 	signal.Notify(quit, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)

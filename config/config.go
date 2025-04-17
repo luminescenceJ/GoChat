@@ -12,6 +12,14 @@ var (
 	Conf *AllConfig
 )
 
+type MongoConfig struct {
+	Username       string `mapstructure:"username"`
+	Password       string `mapstructure:"password"`
+	Host           string `mapstructure:"host"`
+	Port           string `mapstructure:"port"`
+	DBName         string `mapstructure:"dbname"`
+	CollectionName string `mapstructure:"collection_name"`
+}
 type MysqlConfig struct {
 	Host     string `mapstructure:"host"`
 	Port     string `mapstructure:"port"`
@@ -43,6 +51,11 @@ type KafkaConfig struct {
 	Partition   int           `mapstructure:"partition"`
 	Timeout     time.Duration `mapstructure:"timeout"`
 }
+type JwtConfig struct {
+	Secret string `mapstructure:"secret"`
+	TTL    string `mapstructure:"ttl"`
+	Name   string `mapstructure:"name"`
+}
 
 type ConnectBase struct {
 	CertPath string `mapstructure:"certPath"`
@@ -73,27 +86,33 @@ type ConnectConfig struct {
 	ConnectBucket              ConnectBucket              `mapstructure:"connect-bucket"`
 	ConnectWebsocket           ConnectWebsocket           `mapstructure:"connect-websocket"`
 }
-
 type LogicConfig struct {
+	ServerId   string `mapstructure:"serverId"`
 	CpuNum     int    `mapstructure:"cpuNum"`
 	RpcAddress string `mapstructure:"rpcAddress"`
 	CertPath   string `mapstructure:"certPath"`
 	KeyPath    string `mapstructure:"keyPath"`
 }
+type ApiConfig struct {
+	ListenPort int `mapstructure:"listenPort"`
+}
 
 type AllConfig struct {
 	Logic   LogicConfig   `mapstructure:"logic"`
-	Mysql   MysqlConfig   `mapstructure:"mysql"`
-	Redis   RedisConfig   `mapstructure:"redis"`
 	Connect ConnectConfig `mapstructure:"connect"`
-	Etcd    EtcdConfig    `mapstructure:"etcd"`
-	Kafka   KafkaConfig   `mapsturcture:"kafka"`
+	Api     ApiConfig     `mapstructure:"api"`
+
+	Mysql MysqlConfig `mapstructure:"mysql"`
+	Redis RedisConfig `mapstructure:"redis"`
+	Etcd  EtcdConfig  `mapstructure:"etcd"`
+	Kafka KafkaConfig `mapsturcture:"kafka"`
+	Mongo MongoConfig `mapsturcture:"mongo"`
+	Jwt   JwtConfig   `mapsturcture:"jwt"`
 }
 
 func init() {
 	InitConfig()
 }
-
 func InitConfig() {
 	once.Do(func() {
 		config := viper.New()
@@ -109,7 +128,7 @@ func InitConfig() {
 		if err != nil {
 			panic(fmt.Errorf("Use Viper Unmarshal Fatal error config err:%s \n", err))
 		}
-		fmt.Printf("配置文件信息：%+v", configData) // 打印配置文件信息
+		fmt.Printf("配置文件信息：%+v\n", configData) // 打印配置文件信息
 		Conf = configData
 	})
 }

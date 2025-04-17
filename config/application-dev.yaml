@@ -11,6 +11,19 @@ mysql:
   db_name: go_chat
   config: charset=utf8mb4&parseTime=True&loc=Local
 
+mongo:
+  username: admin
+  password: 123456
+  host: localhost
+  port: 27017
+  dbname: go_chat
+  collection_name: message
+
+jwt:
+  secret: admin # 设置jwt签名加密时使用的秘钥
+  ttl: 7200000 # 设置jwt过期时间
+  name: token # 设置前端传递过来的令牌名称
+
 redis:
   host: localhost
   password: 123456

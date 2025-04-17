@@ -18,10 +18,11 @@ const (
 	MsgTypePrivate
 	MsgTypeConnect
 	MsgTypeDisConnect
+	MsgTypeAck
 )
 
 type TransMsg struct {
-	//MsgId            int64  `json:"msg_id"`
+	//MsgId            int64  `json:"msg_id"` // 设计ack必须由前端传递消息序号
 	Type   int    `json:"type"`
 	Buffer string `json:"buffer"` //  []byte 无法直接反序列化字符串
 	//MsgStatus        int    `json:"msg_status,omitempty"`
